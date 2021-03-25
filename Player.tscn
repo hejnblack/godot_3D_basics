@@ -5,7 +5,7 @@ script/source = "# moving editor camera
 #	[shift + mouse_middle]		move
 #	[mouse_right]				rotate
 #	[mouse_middle]				rotate2
-#	[mouse_middle_scroller]		zoom
+#	[mouse_wheel]		zoom
 extends KinematicBody
 
 
