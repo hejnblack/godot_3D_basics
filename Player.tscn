@@ -1,0 +1,121 @@
+[gd_scene load_steps=4 format=2]
+
+[sub_resource type="GDScript" id=1]
+script/source = "# moving editor camera
+#	[shift + mouse_middle]		move
+#	[mouse_right]				rotate
+#	[mouse_middle]				rotate2
+#	[mouse_middle_scroller]		zoom
+extends KinematicBody
+
+
+var speed_walk:			int		= 10
+var speed_on_guard:		int		= 3
+var speed:				int		= speed_walk
+var gravity:			int 	= 70
+var jump_height:		int		= 20
+var camera_rotate_mode:	bool	= false
+var shield_on:			bool	= false
+var mouse_sensitivity:	float	= 0.01
+var motion:				Vector3	= Vector3.ZERO
+var character_eyes:		Spatial
+var character_camera:	Camera
+
+
+func _ready():
+	character_eyes		= $eyes
+	character_camera	= character_eyes.get_node(\"Camera\")
+	camera_rotate_mode	= true
+	Input.set_mouse_mode(Input.MOUSE_MODE_CAPTURED)
+
+
+func _physics_process(delta):
+	var direction:	Vector3
+	
+	if !is_on_floor():
+		motion.y -= (gravity * delta)
+		if motion.y < -gravity:
+			motion.y = -gravity
+	else:
+		motion.y = -1 # fix for jitter on the bottom of a slope
+	
+	if shield_on:
+		speed = speed_on_guard
+	else:
+		speed = speed_walk
+	
+	if Input.is_action_just_pressed(\"ui_select\"):
+		motion.y = jump_height
+	
+	direction = Vector3.ZERO
+	if		Input.is_action_pressed(\"ui_up\"):
+		direction -= transform.basis.z
+	elif	Input.is_action_pressed(\"ui_down\"):
+		direction += transform.basis.z
+	
+	if		Input.is_action_pressed(\"ui_left\"):
+		direction -= transform.basis.x
+	elif	Input.is_action_pressed(\"ui_right\"):
+		direction += transform.basis.x
+	direction = direction.normalized() * speed
+	
+	motion.x = direction.x
+	motion.z = direction.z
+	if motion.y == jump_height:
+		motion = move_and_slide_with_snap(motion, Vector3.ZERO, Vector3.UP, true)
+	else:
+		motion = move_and_slide_with_snap(motion, Vector3.DOWN, Vector3.UP, true)
+
+
+func _input(event):
+	var camera_translation:	Vector3
+	
+	camera_translation = character_camera.get_translation()
+	
+	if event.is_action(\"mouse_wheel_up\") and camera_translation.y > 0:
+		camera_translation.y -= 1
+		camera_translation.z -= 1
+		character_camera.set_translation(camera_translation)
+	
+	if event.is_action(\"mouse_wheel_down\") and camera_translation.y < 10:
+		camera_translation.y += 1
+		camera_translation.z += 1
+		character_camera.set_translation(camera_translation)
+	
+	if camera_rotate_mode:
+		if event is InputEventMouseMotion:
+			rotate_y(-event.relative.x * mouse_sensitivity)
+			character_eyes.rotate_x(-event.relative.y * mouse_sensitivity)
+			character_eyes.rotation.x = clamp(character_eyes.rotation.x, deg2rad(-45), deg2rad(135))
+	
+	if event.is_action_pressed(\"ui_cancel\"):
+		camera_rotate_mode = !camera_rotate_mode
+		if camera_rotate_mode:
+			Input.set_mouse_mode(Input.MOUSE_MODE_CAPTURED)
+		else:
+			Input.set_mouse_mode(Input.MOUSE_MODE_VISIBLE)
+	
+	if		event.is_action_pressed(\"shift\"):
+		shield_on = true
+	elif	event.is_action_released(\"shift\"):
+		shield_on = false
+"
+
+[sub_resource type="CubeMesh" id=2]
+
+[sub_resource type="BoxShape" id=3]
+
+[node name="Player" type="KinematicBody"]
+script = SubResource( 1 )
+
+[node name="MeshInstance" type="MeshInstance" parent="."]
+mesh = SubResource( 2 )
+material/0 = null
+
+[node name="CollisionShape" type="CollisionShape" parent="."]
+shape = SubResource( 3 )
+
+[node name="eyes" type="Spatial" parent="."]
+
+[node name="Camera" type="Camera" parent="eyes"]
+transform = Transform( 1, 0, 0, 0, 0.707107, 0.707107, 0, -0.707107, 0.707107, 0, 7, 7 )
