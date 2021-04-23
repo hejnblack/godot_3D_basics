@@ -5,7 +5,7 @@ script/source = "# moving editor camera
 #	[shift + mouse_middle]		move
 #	[mouse_right]				rotate
 #	[mouse_middle]				rotate2
-#	[mouse_wheel]		zoom
+#	[mouse_middle_scroller]		zoom
 extends KinematicBody
 
 
@@ -20,24 +20,36 @@ var mouse_sensitivity:	float	= 0.01
 var motion:				Vector3	= Vector3.ZERO
 var character_eyes:		Spatial
 var character_camera:	Camera
+var camera_pos:			Vector3
 
 
 func _ready():
 	character_eyes		= $eyes
 	character_camera	= character_eyes.get_node(\"Camera\")
 	camera_rotate_mode	= true
+	camera_pos	= character_camera.get_translation()
 	Input.set_mouse_mode(Input.MOUSE_MODE_CAPTURED)
 
 
 func _physics_process(delta):
-	var direction:	Vector3
+	var direction:		Vector3
 	
-	if !is_on_floor():
+#	var screen_2D_pos:	Vector2
+#	screen_2D_pos = character_camera.unproject_position(get_translation())
+#	$Sprite.set_position(Vector2(screen_2D_pos.x ,screen_2D_pos.y))
+	
+	if $eyes/RayCast.is_colliding():
+		if $eyes/RayCast.get_collider() != self:
+			character_camera.global_transform.origin = $eyes/RayCast.get_collision_point()
+		else:
+			character_camera.set_translation(camera_pos)
+	
+	if is_on_floor():
+		motion.y = -1 # fix for jitter on the bottom of a slope
+	else:
 		motion.y -= (gravity * delta)
 		if motion.y < -gravity:
 			motion.y = -gravity
-	else:
-		motion.y = -1 # fix for jitter on the bottom of a slope
 	
 	if shield_on:
 		speed = speed_on_guard
@@ -61,6 +73,7 @@ func _physics_process(delta):
 	
 	motion.x = direction.x
 	motion.z = direction.z
+#	motion = move_and_slide(motion, Vector3.UP, true)
 	if motion.y == jump_height:
 		motion = move_and_slide_with_snap(motion, Vector3.ZERO, Vector3.UP, true)
 	else:
@@ -73,20 +86,34 @@ func _input(event):
 	camera_translation = character_camera.get_translation()
 	
 	if event.is_action(\"mouse_wheel_up\") and camera_translation.y > 0:
+		camera_pos.y -= 1
+		camera_pos.z -= 1
 		camera_translation.y -= 1
 		camera_translation.z -= 1
-		character_camera.set_translation(camera_translation)
+#		character_camera.set_translation(camera_translation)
+		$Tween.interpolate_property(\\
+			character_camera, \"translation\", character_camera.get_translation(), camera_translation,\\
+			0.05, Tween.TRANS_LINEAR, Tween.EASE_OUT\\
+		)
+		$Tween.start()
 	
 	if event.is_action(\"mouse_wheel_down\") and camera_translation.y < 10:
+		camera_pos.y += 1
+		camera_pos.z += 1
 		camera_translation.y += 1
 		camera_translation.z += 1
-		character_camera.set_translation(camera_translation)
+#		character_camera.set_translation(camera_translation)
+		$Tween.interpolate_property(\\
+			character_camera, \"translation\", character_camera.get_translation(), camera_translation,\\
+			0.05, Tween.TRANS_LINEAR, Tween.EASE_OUT\\
+		)
+		$Tween.start()
 	
 	if camera_rotate_mode:
 		if event is InputEventMouseMotion:
 			rotate_y(-event.relative.x * mouse_sensitivity)
 			character_eyes.rotate_x(-event.relative.y * mouse_sensitivity)
-			character_eyes.rotation.x = clamp(character_eyes.rotation.x, deg2rad(-45), deg2rad(135))
+			character_eyes.rotation.x = clamp(character_eyes.rotation.x, deg2rad(-45), deg2rad(45))
 	
 	if event.is_action_pressed(\"ui_cancel\"):
 		camera_rotate_mode = !camera_rotate_mode
@@ -117,5 +144,12 @@ shape = SubResource( 3 )
 
 [node name="eyes" type="Spatial" parent="."]
 
+[node name="RayCast" type="RayCast" parent="eyes"]
+transform = Transform( 1, 0, 0, 0, 0.707107, 0.707107, 0, -0.707107, 0.707107, 0, 7, 7 )
+enabled = true
+cast_to = Vector3( 0, 0, -99 )
+
 [node name="Camera" type="Camera" parent="eyes"]
 transform = Transform( 1, 0, 0, 0, 0.707107, 0.707107, 0, -0.707107, 0.707107, 0, 7, 7 )
+
+[node name="Tween" type="Tween" parent="."]
